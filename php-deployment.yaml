@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-app
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: php-app
+  template:
+    metadata:
+      labels:
+        app: php-app
+    spec:
+      containers:
+      - name: php-app
+        image: sdurgalaxmi/php-postgres-app:latest
+        ports:
+        - containerPort: 80
+        env:
+          - name: DB_HOST
+            value: "postgres-service"  # Name of the PostgreSQL service
+          - name: DB_USER
+            value: "user"
+          - name: DB_PASSWORD
+            value: "password"
+          - name: DB_NAME
+            value: "testdb"
+        volumeMounts:
+          - name: php-storage
+            mountPath: /var/www/html/my-php-app
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1"
+      volumes:
+        - name: php-storage
+          persistentVolumeClaim:
+            claimName: php-pvc  # Reference to the PVC for the PHP application
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: php-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/data/php" # Path on the host node
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: php-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi  # Adjust storage size as needed
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-app-service
+spec:
+  type: NodePort  # Use NodePort for external access
+  ports:
+    - port: 80             # Port exposed internally in the cluster
+      targetPort: 80       # Port on the container
+      nodePort: 30080      # Optional: Specify a port in the range 30000-32767
+  selector:
+    app: php-app
